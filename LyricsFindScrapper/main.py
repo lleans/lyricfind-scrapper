@@ -18,7 +18,7 @@ class LFException(Exception):
                 404: "Not found",
                 302: "Moved temporarily, or blocked by captcha",
                 403: "Forbidden,or unvalid",
-                429:  "Too many request",
+                429: "Too many request",
                 500: "Server error",
             }
 

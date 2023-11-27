@@ -104,6 +104,19 @@ There are a few funstions that usable as:
 
 All data model, you can acccess it [here 🎯](LyricsFindScrapper/model.py)
 
+## API Access 🔥
+
+Main domain of api is [https://lyricfind-scrapper.lleans.dev/](https://lyricfind-scrapper.lleans.dev/), the usage of as below:
+
+-   **<code>/search?query=(your query)</code> query as url param(str)**<br>
+    path <code>/search</code> use for searching multiple tracks, it will return as list of <code>Track</code> class (json).
+
+-   **<code>/lyrics?query=(your query)</code> query as url param(str)**<br>
+    path <code>/lyrics</code> use for searching track lyrics, just query the name of it. It will return class of <code>SongData</code> (json).
+ 
+-   **<code>/translation?query=(your query)&lang=(your selected language)</code> query and lang as url param(str)**<br>
+    path <code>/translation</code> use for searching track lyrics translation, just query the name of it and the iso code of the country you want transalte of(if avaible). It will return you <code>Translation</code> class(identical with <code>SongData</code> only few changes). (json)
+
 ## Setup 🧩
 
 If you want to use this on your local machine, download this repo, and make sure you run on virtualenv(it's optional)
