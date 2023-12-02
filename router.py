@@ -66,7 +66,7 @@ async def search():
                     'data': ''
                 })
 
-    return jsonify(response)
+    return jsonify(response), response.get('status', 500)
 
 
 @app.route('/track', methods=['GET'])
@@ -117,7 +117,7 @@ async def track():
                     'data': ''
                 })
 
-    return jsonify(response)
+    return jsonify(response), response.get('status', 500)
 
 
 @app.route('/lyric', methods=['GET'])
@@ -168,7 +168,7 @@ async def lyric():
                     'data': ''
                 })
 
-    return jsonify(response)
+    return jsonify(response), response.get('status', 500)
 
 
 @app.route('/translation', methods=['GET'])
@@ -220,7 +220,7 @@ async def translation():
                     'data': ''
                 })
 
-    return jsonify(response)
+    return jsonify(response), response.get('status', 500)
 
 
 @app.errorhandler(400)
