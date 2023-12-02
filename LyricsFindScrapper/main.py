@@ -1,14 +1,15 @@
 from aiohttp import ClientSession
 
 from .model import Track, SongData, Translation
-from .const import LYRICSFIND_DOMAIN, get_param_search, get_param_translation
-from .utils import get_build_id, get_current_ip, get_country_code
+from .const import LYRICSFIND_DOMAIN, Param
+from .utils import get_current_ip, get_country_code
 
 
 class LFException(Exception):
-    def __init__(self, message: str = None, *, http_code: int = None) -> None:
+    def __init__(self, message: str = None, was_generic: bool = False, *, http_code: int = None) -> None:
         self.message = message
         self.http_code = http_code
+        self.was_generic = was_generic
         
         super().__init__(self._errors())
 
@@ -23,8 +24,10 @@ class LFException(Exception):
             }
 
             return http_error.get(self.http_code, f"Unknown error, please report to the project maintainer. HTTP code {self.http_code}")
+        elif self.was_generic:
+            return self.message
         else:
-            return f"Unknown error, please report to the project maintainer. HTTP code {self.message}"
+            return f"Unknown error, please report to the project maintainer. {self.message}"
 
 
 class Search:
@@ -45,14 +48,24 @@ class Search:
         }
         self.session = session or ClientSession(loop=loop, headers=headers)
 
-    async def get_tracks(self, query: str) -> 'list[Track]':
-        if not self.teritory:
-            ip: str = await get_current_ip(session=self.session)
-            self.teritory = await get_country_code(session=self.session, ip=ip)
+    def ensure_teritory(func):
+        async def decor(self, *args, **kwargs):
+            if not self.teritory:
+                ip: str = await get_current_ip(session=self.session)
+                self.teritory = await get_country_code(session=self.session, ip=ip)
 
-        params: dict = get_param_search(
-            query=query, limit=self.limit, teritory=self.teritory)
-        async with self.session.get(f"{LYRICSFIND_DOMAIN}api/v1/search", params=params) as resp:
+            return await func(self, *args, **kwargs)
+        return decor
+
+    @ensure_teritory
+    async def get_tracks(self, query: str) -> list[Track]:
+        '''
+        Get List of all tracks from database, based by keyword
+        '''
+        url: str = f"{LYRICSFIND_DOMAIN}api/v1/search"
+        params: dict = Param(self.teritory).get_param_search(query=query, limit=self.limit)
+
+        async with self.session.get(url=url, params=params) as resp:
             if resp.status < 400:
                 data: dict = await resp.json()
 
@@ -62,31 +75,65 @@ class Search:
                     raise LFException(http_code=resp.status)
             else:
                 raise LFException(http_code=resp.status)
+            
+    @ensure_teritory
+    async def get_track(self, trackid: str):
+        '''
+        Get a track from database, specifically by using metadata/trackid.
 
-    async def get_lyrics(self, track: Track) -> SongData:
-        slug: str = track.slug
-        build_id: str = await get_build_id(session=self.session)
-        url: str = f"{LYRICSFIND_DOMAIN}_next/data/{build_id}/en-US/lyrics/{slug}.json"
+        e.g If using lfid, makesure pass ```lfid:{track id, without bracket}```\n
+        if using apple id do the same ```apple:{track id, without bracket}```\n
+        this method apply to other metadata, that specifiaclly refrence into the track.\n
+        for reference on metadata, check ```Model``` class.
+        '''
+        url: str = f"{LYRICSFIND_DOMAIN}api/v1/metadata"
+        params: dict = Param(self.teritory).get_param_search(trackid=trackid, limit=self.limit)
 
-        async with self.session.get(url=url) as resp:
+        async with self.session.get(url=url, params=params) as resp:
             if resp.status < 400:
                 data: dict = await resp.json()
 
-                return SongData(data=data['pageProps']['songData']['track'])
+                if data['track']:
+                    return Track(data['track'])
+                else:
+                    raise LFException(http_code=resp.status)
             else:
                 raise LFException(http_code=resp.status)
 
-    async def get_translation(self, track: Track, lang: str) -> Translation:
-        if not track.available_translations:
-            raise LFException(message="No translation found on this track!")
+    @ensure_teritory
+    async def get_lyrics(self, lfid: str) -> SongData:
+        '''
+        Get lyric from database, by given track
+        '''
+        url: str = f"{LYRICSFIND_DOMAIN}api/v1/lyric"
+        
+        params: dict = Param(self.teritory).get_param_lyrics(lfid=lfid)
+        async with self.session.get(url=url, params=params) as resp:
+            if resp.status < 400:
+                data: dict = await resp.json()
+                print(data)
 
+                return SongData(data=data['track'])
+            else:
+                raise LFException(http_code=resp.status)
+
+    @ensure_teritory
+    async def get_translation(self, track: Track, lang: str) -> Translation:
+        '''
+        Get translated lyric from database, by given track and language.
+
+        This also dynamically check, if passed language is exist or not, if doesnt, will throw exception.
+        '''
+        if not track.available_translations:
+            raise LFException(message="No translation found on this track!", was_generic=True)
+
+        url: str = f"{LYRICSFIND_DOMAIN}api/v1/translation"
         lang = lang.lower()
         if not lang in track.available_translations:
             raise LFException(
-                message=f"Please check the language you inputted!. Listed language {track.available_translations}(listed on array, select one))")
+                message=f"Please check the language you inputted!. Listed language {track.available_translations}(listed on array, select one))", was_generic=True)
 
-        url: str = f"{LYRICSFIND_DOMAIN}api/v1/translation"
-        params: dict = get_param_translation(trackid=track.lfid, teritory=self.teritory, traslation_language=lang)
+        params: dict = Param(self.teritory).get_param_translation(lfid=track.lfid, traslation_language=lang)
         async with self.session.get(url=url, params=params) as resp:
             if resp.status < 400:
                 data: dict = await resp.json()

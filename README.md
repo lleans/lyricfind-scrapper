@@ -52,6 +52,20 @@ There are a few funstions that usable as:
   )
   ```
 
+- **<code>get_track(trackid: str)</code> query as params(type str)**<br>
+  Find sepcific track based on metdata. Will return as <code>Track</code> class.
+
+  ```python
+  from LyricsFindScrapper import Search, Track
+
+  session = #your http client
+  client: Search = Search(session=session)
+
+  #Make sure you're on async func.
+  #Getting track e.g
+  track: Track = await client.get_track(trackid=f'lfid:{tracks[0].lfid}')
+  ```
+
 - **<code>get_lyrics(track: Track)</code> track as params(type Track)**<br>
   The tracks that you already got, pass it here to get the lyrics. This will return class of <code>SongData</code>.
 
@@ -111,11 +125,14 @@ Main domain of api is [https://lyricfind-scrapper.lleans.dev/](https://lyricfind
 -   **<code>/search?query=(your query)</code> query as url param(str)**<br>
     path <code>/search</code> use for searching multiple tracks, it will return as list of <code>Track</code> class (json).
 
--   **<code>/lyrics?query=(your query)</code> query as url param(str)**<br>
-    path <code>/lyrics</code> use for searching track lyrics, just query the name of it. It will return class of <code>SongData</code> (json).
+-   **<code>/track?trackid=(your trackid)</code> trackid as url param(str)**<br>
+    path <code>/track</code> use to get an track from metadata you already got. Like isrc, lfid, appleid etc. To use it, make follow this format <code>lfid:213123</code> change lfid into your metadata name, and pass the value on it, it will return as a <code>Track</code> class (json).
+
+-   **<code>/lyric?lfid=(your track lfid)</code> lfid as url param(str)**<br>
+    path <code>/lyric</code> use to get track lyric, pass the <code>lfid</code> you got from steps before. It will return class of <code>SongData</code> (json).
  
--   **<code>/translation?query=(your query)&lang=(your selected language)</code> query and lang as url param(str)**<br>
-    path <code>/translation</code> use for searching track lyrics translation, just query the name of it and the iso code of the country you want transalte of(if avaible). It will return you <code>Translation</code> class(identical with <code>SongData</code> only few changes). (json)
+-   **<code>/translation?lfid=(your track lfid)&lang=(your selected language)</code> query and lang as url param(str)**<br>
+    path <code>/translation</code> use to get track lyric translation,pass the <code>lfid</code> you got from steps before and the iso code of the country you want translate of(if available). It will return you <code>Translation</code> class(identical with <code>SongData</code> only few changes). (json)
 
 ## Setup 🧩
 

@@ -20,20 +20,20 @@ cache: Cache = Cache(app)
 
 @app.route('/search', methods=['GET'])
 @cache.cached(query_string=True)
-async def tracks(query: str = None):
+async def search():
     response: dict = {
         'status': 400,
         'message': 'Bad request',
-        'data': ''
+        'data': 'need query param as, query:your keyword'
     }
 
-    query: str = request.args.get('query') or None
+    query: str = request.args.get('query')
 
-    if query is not None:
+    if query:
         async with ClientSession() as sess:
             list_ip: list[str] = request.headers['x-forwarded-for'].split(',')
             ip: str = list_ip[len(list_ip)-1] or request.remote_addr
-            
+
             country_code: str = await get_country_code(session=sess, ip=ip)
             api: Search = Search(session=sess, teritory=country_code)
 
@@ -50,48 +50,48 @@ async def tracks(query: str = None):
                 else:
                     response.update({
                         'status': 404,
-                        'message': "Query not found"
+                        'message': "Query not found",
+                        'data': ''
                     })
             except LFException as e:
                 response.update({
                     'message': e.message,
-                    'status': e.http_code
+                    'status': e.http_code,
+                    'data': ''
                 })
             except Exception as ex:
                 response.update({
                     'message': f'Something went wrong, {ex}',
-                    'status': 500
+                    'status': 500,
+                    'data': ''
                 })
-
-            sess.close()
 
     return jsonify(response)
 
 
-@app.route('/lyrics', methods=['GET'])
+@app.route('/track', methods=['GET'])
 @cache.cached(query_string=True)
-async def lyrics():
+async def track():
     response: dict = {
         'status': 400,
         'message': 'Bad request',
-        'data': ''
+        'data': 'need trackid param as, trackid:your trackid(check docs)'
     }
 
-    query: str = request.args.get('query') or None
+    trackid: str = request.args.get('trackid')
 
-    if query is not None:
+    if trackid:
         async with ClientSession() as sess:
             list_ip: list[str] = request.headers['x-forwarded-for'].split(',')
             ip: str = list_ip[len(list_ip)-1] or request.remote_addr
-            
+
             country_code: str = await get_country_code(session=sess, ip=ip)
             api: Search = Search(session=sess, teritory=country_code)
 
             try:
-                query = query.strip()
+                trackid = trackid.strip()
 
-                tracks: list[Track] = await api.get_tracks(query=query)
-                data: SongData = await api.get_lyrics(track=tracks[0])
+                data: Track = await api.get_track(trackid=trackid)
                 if data:
                     response.update({
                         'data': data.to_dict(),
@@ -101,20 +101,72 @@ async def lyrics():
                 else:
                     response.update({
                         'status': 404,
-                        'message': "Query not found"
+                        'message': "Track not found",
+                        'data': ''
                     })
             except LFException as e:
                 response.update({
                     'message': e.message,
-                    'status': e.http_code
+                    'status': e.http_code,
+                    'data': ''
                 })
             except Exception as ex:
                 response.update({
                     'message': f'Something went wrong, {ex}',
-                    'status': 500
+                    'status': 500,
+                    'data': ''
                 })
 
-            sess.close()
+    return jsonify(response)
+
+
+@app.route('/lyric', methods=['GET'])
+@cache.cached(query_string=True)
+async def lyric():
+    response: dict = {
+        'status': 400,
+        'message': 'Bad request',
+        'data': 'need lfid param as, lfid:your lfid(check docs)'
+    }
+
+    lfid: str = request.args.get('lfid')
+
+    if lfid:
+        async with ClientSession() as sess:
+            list_ip: list[str] = request.headers['x-forwarded-for'].split(',')
+            ip: str = list_ip[len(list_ip)-1] or request.remote_addr
+
+            country_code: str = await get_country_code(session=sess, ip=ip)
+            api: Search = Search(session=sess, teritory=country_code)
+
+            try:
+                lfid = lfid.strip()
+
+                data: SongData = await api.get_lyrics(lfid=lfid)
+                if data:
+                    response.update({
+                        'data': data.to_dict(),
+                        'status': 200,
+                        'message': "OK"
+                    })
+                else:
+                    response.update({
+                        'status': 404,
+                        'message': "Lyric not found",
+                        'data': ''
+                    })
+            except LFException as e:
+                response.update({
+                    'message': e.message,
+                    'status': e.http_code,
+                    'data': ''
+                })
+            except Exception as ex:
+                response.update({
+                    'message': f'Something went wrong, {ex}',
+                    'status': 500,
+                    'data': ''
+                })
 
     return jsonify(response)
 
@@ -125,25 +177,24 @@ async def translation():
     response: dict = {
         'status': 400,
         'message': 'Bad request',
-        'data': ''
+        'data': 'need lfid, lang param as, lfid:your lfid(check docs), lang: your lang(check docs)'
     }
 
-    query: str = request.args.get('query') or None
-    lang: str = request.args.get('lang') or 'en'
+    lfid: str = request.args.get('lfid')
+    lang: str = request.args.get('lang', 'en')
 
-    if query is not None:
+    if lfid:
         async with ClientSession() as sess:
             list_ip: list[str] = request.headers['x-forwarded-for'].split(',')
             ip: str = list_ip[len(list_ip)-1] or request.remote_addr
-            
+
             country_code: str = await get_country_code(session=sess, ip=ip)
             api: Search = Search(session=sess, teritory=country_code)
 
             try:
-                query = query.strip()
+                lfid = lfid.strip()
 
-                tracks: list[Track] = await api.get_tracks(query=query)
-                track: Track = await api.get_lyrics(track=tracks[0])
+                track: Track = await api.get_track(trackid=f'lfid:{lfid}')
                 data: Translation = await api.get_translation(track=track, lang=lang)
                 if data:
                     response.update({
@@ -154,20 +205,20 @@ async def translation():
                 else:
                     response.update({
                         'status': 404,
-                        'message': "Query not found"
+                        'message': "Translation not found"
                     })
             except LFException as e:
                 response.update({
                     'message': e.message,
-                    'status': e.http_code
+                    'status': e.http_code,
+                    'data': ''
                 })
             except Exception as ex:
                 response.update({
                     'message': f'Something went wrong, {ex}',
-                    'status': 500
+                    'status': 500,
+                    'data': ''
                 })
-
-            sess.close()
 
     return jsonify(response)
 
