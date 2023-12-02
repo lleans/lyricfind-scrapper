@@ -52,6 +52,20 @@ There are a few funstions that usable as:
   )
   ```
 
+- **<code>get_track(trackid: str)</code> query as params(type str)**<br>
+  Find sepcific track based on metdata. Will return as <code>Track</code> class.
+
+  ```python
+  from LyricsFindScrapper import Search, Track
+
+  session = #your http client
+  client: Search = Search(session=session)
+
+  #Make sure you're on async func.
+  #Getting track e.g
+  track: Track = await client.get_track(trackid=f'lfid:{tracks[0].lfid}')
+  ```
+
 - **<code>get_lyrics(track: Track)</code> track as params(type Track)**<br>
   The tracks that you already got, pass it here to get the lyrics. This will return class of <code>SongData</code>.
 
