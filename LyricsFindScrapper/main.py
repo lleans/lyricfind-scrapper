@@ -21,6 +21,7 @@ class LFException(Exception):
                 403: "Forbidden,or unvalid",
                 429: "Too many request",
                 500: "Server error",
+                100: "No response from API. Also, request was could not found"
             }
 
             return http_error.get(self.http_code, f"Unknown error, please report to the project maintainer. HTTP code {self.http_code}")
@@ -48,7 +49,7 @@ class Search:
         }
         self.session = session or ClientSession(loop=loop, headers=headers)
 
-    def ensure_teritory(func):
+    def __ensure_teritory(func):
         async def decor(self, *args, **kwargs):
             if not self.teritory:
                 ip: str = await get_current_ip(session=self.session)
@@ -57,7 +58,7 @@ class Search:
             return await func(self, *args, **kwargs)
         return decor
 
-    @ensure_teritory
+    @__ensure_teritory
     async def get_tracks(self, query: str) -> list[Track]:
         '''
         Get List of all tracks from database, based by keyword
@@ -69,14 +70,14 @@ class Search:
             if resp.status < 400:
                 data: dict = await resp.json()
 
-                if data['tracks']:
+                if data.get('tracks', False):
                     return [Track(x) for x in data['tracks']]
                 else:
-                    raise LFException(http_code=resp.status)
+                    raise LFException(http_code=data['response']['code'])
             else:
                 raise LFException(http_code=resp.status)
             
-    @ensure_teritory
+    @__ensure_teritory
     async def get_track(self, trackid: str):
         '''
         Get a track from database, specifically by using metadata/trackid.
@@ -93,14 +94,14 @@ class Search:
             if resp.status < 400:
                 data: dict = await resp.json()
 
-                if data['track']:
+                if data.get('track', False):
                     return Track(data['track'])
                 else:
-                    raise LFException(http_code=resp.status)
+                    raise LFException(http_code=data['response']['code'])
             else:
                 raise LFException(http_code=resp.status)
 
-    @ensure_teritory
+    @__ensure_teritory
     async def get_lyrics(self, lfid: str) -> SongData:
         '''
         Get lyric from database, by given track
@@ -111,13 +112,15 @@ class Search:
         async with self.session.get(url=url, params=params) as resp:
             if resp.status < 400:
                 data: dict = await resp.json()
-                print(data)
 
-                return SongData(data=data['track'])
+                if data.get('track', False):
+                    return SongData(data=data['track'])
+                else:
+                    raise LFException(http_code=data['response']['code'])
             else:
                 raise LFException(http_code=resp.status)
 
-    @ensure_teritory
+    @__ensure_teritory
     async def get_translation(self, track: Track, lang: str) -> Translation:
         '''
         Get translated lyric from database, by given track and language.
@@ -137,6 +140,9 @@ class Search:
         async with self.session.get(url=url, params=params) as resp:
             if resp.status < 400:
                 data: dict = await resp.json()
-                return Translation(data=data['track'])
+                if data.get('track', False):
+                    return Translation(data=data['track'])
+                else:
+                    raise LFException(http_code=data['response']['code'])
             else:
                 raise LFException(http_code=resp.status)
