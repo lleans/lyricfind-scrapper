@@ -1,233 +1,196 @@
 from os import environ
 
-from flask import Flask, jsonify, redirect, request
-from flask_caching import Cache
+from contextlib import asynccontextmanager
+
 from aiohttp import ClientSession
+
+from pydantic import BaseModel, Field
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from fastapi_cache.decorator import cache
+
+from redis import asyncio as aioredis
+
+import uvicorn
+
 from LyricsFindScrapper import Search, get_country_code, Track, Translation, LFException, SongData
 
-config: dict = {
-    'CORS_HEADERS': 'Content-Type',
-    'JSON_SORT_KEYS': False,
-    'CACHE_TYPE': 'FileSystemCache',
-    "CACHE_DEFAULT_TIMEOUT": 86400,
-    "CACHE_DIR": "cache"
-}
 
-app: Flask = Flask('lyricfind_scrapper')
-app.config.from_mapping(config)
-cache: Cache = Cache(app)
+@asynccontextmanager
+async def lifespan(_):
+    redis = aioredis.from_url("redis://redis")
+    FastAPICache.init(RedisBackend(redis), prefix="lyricfind-cache")
+    yield
+
+app = FastAPI(title='LyricFind Scrapper', lifespan=lifespan, version="2.0")
 
 
-@app.route('/search', methods=['GET'])
-@cache.cached(query_string=True)
-async def search():
-    response: dict = {
-        'status': 400,
-        'message': 'Bad request',
-        'data': 'need query param as, query:your keyword'
-    }
+class ModelResponse(BaseModel):
+    status: int = Field(default=200)
+    message: str = Field(default="OK")
+    data: dict | list[dict] = Field(default=dict())
 
-    query: str = request.args.get('query')
+
+@app.get('/search', response_model=ModelResponse, responses={
+    200: {'description': "Will return data as model below", 'model': ModelResponse},
+    404: {'description': "Will return when data is not found", 'model': ModelResponse}
+})
+@cache(expire=86400)
+async def search(query: str, request: Request) -> JSONResponse:
+    '''
+    Get List of all tracks from database, based by keyword
+    '''
+    resp: ModelResponse = ModelResponse()
 
     if query:
         async with ClientSession() as sess:
-            list_ip: list[str] = request.headers['x-forwarded-for'].split(',')
-            ip: str = list_ip[len(list_ip)-1] or request.remote_addr
+            ip: str = request.client.host
 
             country_code: str = await get_country_code(session=sess, ip=ip)
             api: Search = Search(session=sess, teritory=country_code)
 
-            try:
-                query = query.strip()
+            query = query.strip()
 
-                data: list[Track] = await api.get_tracks(query=query)
-                if len(data) > 0:
-                    response.update({
-                        'data': [x.to_dict() for x in data],
-                        'status': 200,
-                        'message': "OK"
-                    })
-                else:
-                    response.update({
-                        'status': 404,
-                        'message': "Query not found",
-                        'data': ''
-                    })
-            except LFException as e:
-                response.update({
-                    'message': e.message,
-                    'status': e.http_code,
-                    'data': ''
-                })
-            except Exception as ex:
-                response.update({
-                    'message': f'Something went wrong, {ex}',
-                    'status': 500,
-                    'data': ''
-                })
+            data: list[Track] = await api.get_tracks(query=query)
+            if len(data) > 0:
+                resp.data = [x.to_dict() for x in data]
+            else:
+                resp.status = 404
+                resp.message = "Query not found"
 
-    return jsonify(response), response.get('status', 500)
+    return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
 
 
-@app.route('/track', methods=['GET'])
-@cache.cached(query_string=True)
-async def track():
-    response: dict = {
-        'status': 400,
-        'message': 'Bad request',
-        'data': 'need trackid param as, trackid:your trackid(check docs)'
-    }
+@app.get('/track', response_model=ModelResponse, responses={
+    200: {'description': "Will return data as model below", 'model': ModelResponse},
+    404: {'description': "Will return when data is not found", 'model': ModelResponse}
+})
+@cache(expire=86400)
+async def track(trackid: str, request: Request) -> JSONResponse:
+    '''
+    Get a track from database, specifically by using metadata/trackid.
 
-    trackid: str = request.args.get('trackid')
+    e.g If using lfid, makesure pass ```lfid:{track id, without bracket}```\n
+    if using apple id do the same ```apple:{track id, without bracket}```\n
+    this method apply to other metadata, that specifiaclly refrence into the track.\n
+    for reference on metadata, check ```Model``` class.
+    '''
+    resp: ModelResponse = ModelResponse()
 
     if trackid:
         async with ClientSession() as sess:
-            list_ip: list[str] = request.headers['x-forwarded-for'].split(',')
-            ip: str = list_ip[len(list_ip)-1] or request.remote_addr
+            ip: str = request.client.host
 
             country_code: str = await get_country_code(session=sess, ip=ip)
             api: Search = Search(session=sess, teritory=country_code)
 
-            try:
-                trackid = trackid.strip()
+            trackid = trackid.strip()
 
-                data: Track = await api.get_track(trackid=trackid)
-                if data:
-                    response.update({
-                        'data': data.to_dict(),
-                        'status': 200,
-                        'message': "OK"
-                    })
-                else:
-                    response.update({
-                        'status': 404,
-                        'message': "Track not found",
-                        'data': ''
-                    })
-            except LFException as e:
-                response.update({
-                    'message': e.message,
-                    'status': e.http_code,
-                    'data': ''
-                })
-            except Exception as ex:
-                response.update({
-                    'message': f'Something went wrong, {ex}',
-                    'status': 500,
-                    'data': ''
-                })
+            data: Track = await api.get_track(trackid=trackid)
+            if data:
+                resp.data = data.to_dict()
+            else:
+                resp.status = 404
+                resp.message = "Track not found"
 
-    return jsonify(response), response.get('status', 500)
+    return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
 
 
-@app.route('/lyric', methods=['GET'])
-@cache.cached(query_string=True)
-async def lyric():
-    response: dict = {
-        'status': 400,
-        'message': 'Bad request',
-        'data': 'need lfid param as, lfid:your lfid(check docs)'
-    }
-
-    lfid: str = request.args.get('lfid')
+@app.get('/lyric', response_model=ModelResponse, responses={
+    200: {'description': "Will return data as model below", 'model': ModelResponse},
+    404: {'description': "Will return when data is not found", 'model': ModelResponse}
+})
+@cache(expire=86400)
+async def lyric(lfid: str, request: Request) -> JSONResponse:
+    '''
+    Get lyric from database, by given track
+    '''
+    resp: ModelResponse = ModelResponse()
 
     if lfid:
         async with ClientSession() as sess:
-            list_ip: list[str] = request.headers['x-forwarded-for'].split(',')
-            ip: str = list_ip[len(list_ip)-1] or request.remote_addr
+            ip: str = request.client.host
 
             country_code: str = await get_country_code(session=sess, ip=ip)
             api: Search = Search(session=sess, teritory=country_code)
 
-            try:
-                lfid = lfid.strip()
+            lfid = lfid.strip()
 
-                data: SongData = await api.get_lyrics(lfid=lfid)
-                if data:
-                    response.update({
-                        'data': data.to_dict(),
-                        'status': 200,
-                        'message': "OK"
-                    })
-                else:
-                    response.update({
-                        'status': 404,
-                        'message': "Lyric not found",
-                        'data': ''
-                    })
-            except LFException as e:
-                response.update({
-                    'message': e.message,
-                    'status': e.http_code,
-                    'data': ''
-                })
-            except Exception as ex:
-                response.update({
-                    'message': f'Something went wrong, {ex}',
-                    'status': 500,
-                    'data': ''
-                })
+            data: SongData = await api.get_lyrics(lfid=lfid)
+            if data:
+                resp.data = data.to_dict()
+            else:
+                resp.status = 404
+                resp.message = "Lyric not found"
 
-    return jsonify(response), response.get('status', 500)
+    return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
 
 
-@app.route('/translation', methods=['GET'])
-@cache.cached(query_string=True)
-async def translation():
-    response: dict = {
-        'status': 400,
-        'message': 'Bad request',
-        'data': 'need lfid, lang param as, lfid:your lfid(check docs), lang: your lang(check docs)'
-    }
+@app.get('/translation', response_model=ModelResponse, responses={
+    200: {'description': "Will return data as model below", 'model': ModelResponse},
+    404: {'description': "Will return when data is not found", 'model': ModelResponse}
+})
+@cache(expire=86400)
+async def translation(lfid: str, lang: str = 'en', *, request: Request):
+    '''
+    Get translated lyric from database, by given track and language.
 
-    lfid: str = request.args.get('lfid')
-    lang: str = request.args.get('lang', 'en')
+    This also dynamically check, if passed language is exist or not, if doesnt, will throw exception.
+    '''
+    resp: ModelResponse = ModelResponse()
 
     if lfid:
         async with ClientSession() as sess:
-            list_ip: list[str] = request.headers['x-forwarded-for'].split(',')
-            ip: str = list_ip[len(list_ip)-1] or request.remote_addr
+            ip: str = request.client.host
 
             country_code: str = await get_country_code(session=sess, ip=ip)
             api: Search = Search(session=sess, teritory=country_code)
 
-            try:
-                lfid = lfid.strip()
+            lfid = lfid.strip()
 
-                track: Track = await api.get_track(trackid=f'lfid:{lfid}')
-                data: Translation = await api.get_translation(track=track, lang=lang)
-                if data:
-                    response.update({
-                        'data': data.to_dict(),
-                        'status': 200,
-                        'message': "OK"
-                    })
-                else:
-                    response.update({
-                        'status': 404,
-                        'message': "Translation not found"
-                    })
-            except LFException as e:
-                response.update({
-                    'message': e.message,
-                    'status': e.http_code,
-                    'data': ''
-                })
-            except Exception as ex:
-                response.update({
-                    'message': f'Something went wrong, {ex}',
-                    'status': 500,
-                    'data': ''
-                })
+            track: Track = await api.get_track(trackid=f'lfid:{lfid}')
+            data: Translation = await api.get_translation(track=track, lang=lang)
+            if data:
+                resp.data = data.to_dict()
+            else:
+                resp.status = 404
+                resp.message = "Translation not found"
 
-    return jsonify(response), response.get('status', 500)
+    return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
 
 
-@app.errorhandler(400)
-@app.errorhandler(404)
-async def docs(e):
-    return redirect('https://github.com/lleans/lyricfind-scrapper/tree/flask')
+@app.exception_handler(404)
+async def error_handling_lf(_, exec: Exception) -> JSONResponse | RedirectResponse:
+    if isinstance(exec, LFException):
+        resp: ModelResponse = ModelResponse()
+        resp.status = exec.http_code
+        resp.message = exec.message
+        return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
+
+    return RedirectResponse(url='/docs')
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_handling(_, __) -> JSONResponse:
+    resp: ModelResponse = ModelResponse()
+    resp.status = 400
+    resp.message = "Bad request, please check your datatypes or make sure to fill all parameter"
+    return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
+
+
+@app.exception_handler(500)
+async def error_handling(_, exec: Exception) -> JSONResponse:
+    resp: ModelResponse = ModelResponse()
+    resp.status = 500
+    resp.message = "Something went wrong!! " + str(exec)
+    return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
 
 if __name__ == "__main__":
-    app.run(port=environ.get('PORT') or 8000,
-            host='0.0.0.0', threaded=False, debug=False)
+    uvicorn.run("router:app", host="0.0.0.0",
+                port=int(environ.get('PORT')) or 8000, log_level="info", workers=3, forwarded_allow_ips="*")
