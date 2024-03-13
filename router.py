@@ -32,14 +32,15 @@ app = FastAPI(title='LyricFind Scrapper', lifespan=lifespan, version="2.0")
 
 
 class ModelResponse(BaseModel):
-    status: int = Field(default=200)
-    message: str = Field(default="OK")
-    data: dict | list[dict] = Field(default=dict())
+    status: int
+    message: str
+    data: dict | list[dict]
 
 
 @app.get('/search', response_model=ModelResponse, responses={
     200: {'description': "Will return data as model below", 'model': ModelResponse},
-    404: {'description': "Will return when data is not found", 'model': ModelResponse}
+    404: {'description': "Will return when data is not found", 'model': ModelResponse},
+    422: {'description': "Will return when peforming bad request", 'model': ModelResponse}
 })
 @cache(expire=86400)
 async def search(query: str, request: Request) -> JSONResponse:
@@ -47,6 +48,8 @@ async def search(query: str, request: Request) -> JSONResponse:
     Get List of all tracks from database, based by keyword
     '''
     resp: ModelResponse = ModelResponse()
+    resp.status = 200
+    resp.message = "OK"
 
     if query:
         async with ClientSession() as sess:
@@ -69,7 +72,8 @@ async def search(query: str, request: Request) -> JSONResponse:
 
 @app.get('/track', response_model=ModelResponse, responses={
     200: {'description': "Will return data as model below", 'model': ModelResponse},
-    404: {'description': "Will return when data is not found", 'model': ModelResponse}
+    404: {'description': "Will return when data is not found", 'model': ModelResponse},
+    422: {'description': "Will return when peforming bad request", 'model': ModelResponse}
 })
 @cache(expire=86400)
 async def track(trackid: str, request: Request) -> JSONResponse:
@@ -82,6 +86,8 @@ async def track(trackid: str, request: Request) -> JSONResponse:
     for reference on metadata, check ```Model``` class.
     '''
     resp: ModelResponse = ModelResponse()
+    resp.status = 200
+    resp.message = "OK"
 
     if trackid:
         async with ClientSession() as sess:
@@ -104,7 +110,8 @@ async def track(trackid: str, request: Request) -> JSONResponse:
 
 @app.get('/lyric', response_model=ModelResponse, responses={
     200: {'description': "Will return data as model below", 'model': ModelResponse},
-    404: {'description': "Will return when data is not found", 'model': ModelResponse}
+    404: {'description': "Will return when data is not found", 'model': ModelResponse},
+    422: {'description': "Will return when peforming bad request", 'model': ModelResponse}
 })
 @cache(expire=86400)
 async def lyric(lfid: str, request: Request) -> JSONResponse:
@@ -112,6 +119,8 @@ async def lyric(lfid: str, request: Request) -> JSONResponse:
     Get lyric from database, by given track
     '''
     resp: ModelResponse = ModelResponse()
+    resp.status = 200
+    resp.message = "OK"
 
     if lfid:
         async with ClientSession() as sess:
@@ -134,7 +143,8 @@ async def lyric(lfid: str, request: Request) -> JSONResponse:
 
 @app.get('/translation', response_model=ModelResponse, responses={
     200: {'description': "Will return data as model below", 'model': ModelResponse},
-    404: {'description': "Will return when data is not found", 'model': ModelResponse}
+    404: {'description': "Will return when data is not found", 'model': ModelResponse},
+    422: {'description': "Will return when peforming bad request", 'model': ModelResponse}
 })
 @cache(expire=86400)
 async def translation(lfid: str, lang: str = 'en', *, request: Request):
@@ -144,6 +154,8 @@ async def translation(lfid: str, lang: str = 'en', *, request: Request):
     This also dynamically check, if passed language is exist or not, if doesnt, will throw exception.
     '''
     resp: ModelResponse = ModelResponse()
+    resp.status = 200
+    resp.message = "OK"
 
     if lfid:
         async with ClientSession() as sess:
