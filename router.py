@@ -162,8 +162,7 @@ async def search(query: Annotated[str, Query(title="Track keyword", description=
             if len(data) > 0:
                 resp.data = data
             else:
-                resp.status = 404
-                resp.message = "Query not found"
+                raise LFException(message="Query not found", was_generic=True, http_code=404)
 
     return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
 
@@ -284,8 +283,7 @@ async def track(trackid: Annotated[str, Query(title="Track id", description="Pas
             if data:
                 resp.data = data
             else:
-                resp.status = 404
-                resp.message = "Track not found"
+                raise LFException(message="Track not found", was_generic=True, http_code=404)
 
     return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
 
@@ -404,8 +402,7 @@ async def lyric(lfid: Annotated[str, Query(title="Lfid", description="Pass your 
             if data:
                 resp.data = data
             else:
-                resp.status = 404
-                resp.message = "Lyric not found"
+                raise LFException(message="Lyric not found", was_generic=True, http_code=404)
 
     return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
 
@@ -717,8 +714,7 @@ async def translation(lfid: Annotated[str, Query(title="Lfid", description="Pass
             if data:
                 resp.data = data
             else:
-                resp.status = 404
-                resp.message = "Translation not found"
+                raise LFException(message="Translation not found", was_generic=True, http_code=404)
 
     return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
 
