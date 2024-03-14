@@ -162,7 +162,8 @@ async def search(query: Annotated[str, Query(title="Track keyword", description=
             if len(data) > 0:
                 resp.data = data
             else:
-                raise LFException(message="Query not found", was_generic=True, http_code=404)
+                raise LFException(message="Query not found",
+                                  was_generic=True, http_code=404)
 
     return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
 
@@ -258,7 +259,7 @@ async def search(query: Annotated[str, Query(title="Track keyword", description=
           }}
 })
 @cache(expire=86400)
-async def track(trackid: Annotated[str, Query(title="Track id", description="Pass your track id into here")], request: Request) -> JSONResponse:
+async def track(trackid: Annotated[str, Query(title="Track id", description="Pass your track id into here", pattern="^(lfid|rovi|apple|deezer|isrc):([^,\s]+)$")], request: Request) -> JSONResponse:
     '''
     Get a track from database, specifically by using metadata/trackid.
 
@@ -283,7 +284,8 @@ async def track(trackid: Annotated[str, Query(title="Track id", description="Pas
             if data:
                 resp.data = data
             else:
-                raise LFException(message="Track not found", was_generic=True, http_code=404)
+                raise LFException(message="Track not found",
+                                  was_generic=True, http_code=404)
 
     return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
 
@@ -382,7 +384,7 @@ async def track(trackid: Annotated[str, Query(title="Track id", description="Pas
           }}
 })
 @cache(expire=86400)
-async def lyric(lfid: Annotated[str, Query(title="Lfid", description="Pass your lfid into here(get it from the request before ```/track``` and ```/search```)")], request: Request) -> JSONResponse:
+async def lyric(lfid: Annotated[str, Query(title="Lfid", description="Pass your lfid into here(get it from the request before ```/track``` and ```/search```)", pattern="^\d{3}-\d+$")], request: Request) -> JSONResponse:
     '''
     Get lyric from database, by given track
     '''
@@ -402,7 +404,8 @@ async def lyric(lfid: Annotated[str, Query(title="Lfid", description="Pass your 
             if data:
                 resp.data = data
             else:
-                raise LFException(message="Lyric not found", was_generic=True, http_code=404)
+                raise LFException(message="Lyric not found",
+                                  was_generic=True, http_code=404)
 
     return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
 
@@ -690,7 +693,7 @@ async def lyric(lfid: Annotated[str, Query(title="Lfid", description="Pass your 
           }}
 })
 @cache(expire=86400)
-async def translation(lfid: Annotated[str, Query(title="Lfid", description="Pass your lfid into here(get it from the request before ```/track``` and ```/search``` and ```/lyric```)")],
+async def translation(lfid: Annotated[str, Query(title="Lfid", description="Pass your lfid into here(get it from the request before ```/track``` and ```/search``` and ```/lyric```)", pattern="^\d{3}-\d+$")],
                       lang: Annotated[str, Query(title="Selected language", description="Pass your target language to translate(make sure the target language exist in track data)")] = 'en', *, request: Request):
     '''
     Get translated lyric from database, by given track and language.
@@ -714,7 +717,8 @@ async def translation(lfid: Annotated[str, Query(title="Lfid", description="Pass
             if data:
                 resp.data = data
             else:
-                raise LFException(message="Translation not found", was_generic=True, http_code=404)
+                raise LFException(message="Translation not found",
+                                  was_generic=True, http_code=404)
 
     return JSONResponse(content=jsonable_encoder(resp), status_code=resp.status)
 
