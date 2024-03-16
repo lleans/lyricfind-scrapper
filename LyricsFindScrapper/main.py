@@ -132,7 +132,7 @@ class Search:
 
         url: str = f"{LYRICSFIND_DOMAIN}api/v1/translation"
         lang = lang.lower()
-        if not lang in track.available_translations:
+        if lang not in track.available_translations:
             raise LFException(
                 message=f"Please check the language you inputted!. Listed language {track.available_translations}(listed on array, select one))", was_generic=True)
 
