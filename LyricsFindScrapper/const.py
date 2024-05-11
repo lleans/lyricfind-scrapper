@@ -2,6 +2,11 @@ LYRICSFIND_DOMAIN = "https://lyrics.lyricfind.com/"
 
 IP_LOCATION_API = "https://api.iplocation.net/"
 
+HEADERS = {
+    'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+}
+TOKEN_EXP = 2  # In days
+
 
 class Param:
 
@@ -9,7 +14,8 @@ class Param:
         self.default_param = {
             'reqtype': 'default',
             'territory': teritory,
-            'output': 'json'
+            'output': 'json',
+            'useragent': HEADERS['User-Agent']
         }
 
     def get_param_search(self, query: str = None, trackid: str = None, *, limit: int):
@@ -34,7 +40,7 @@ class Param:
         temp.update({
             'trackid': f'lfid:{lfid}'
         })
-        
+
         return temp
 
     def get_param_translation(self, lfid: str, traslation_language: str):

@@ -1,7 +1,9 @@
+from datetime import datetime, timedelta
+
 from aiohttp import ClientSession
 
 from .model import Track, SongData, Translation
-from .const import LYRICSFIND_DOMAIN, Param
+from .const import LYRICSFIND_DOMAIN, Param, HEADERS, TOKEN_EXP
 from .utils import get_current_ip, get_country_code
 
 
@@ -10,7 +12,7 @@ class LFException(Exception):
         self.message = message
         self.http_code = http_code
         self.was_generic = was_generic
-        
+
         super().__init__(self._errors())
 
     def _errors(self):
@@ -35,6 +37,12 @@ class Search:
     def __init__(self, session=None, *, lib='asyncio', loop=None, teritory: str = None, limit: int = 5, **request_kwargs):
         self.request_kwargs = request_kwargs
         self.teritory: str = teritory
+
+        self.token: dict = {
+            'grabbed': None,
+            'expired': TOKEN_EXP
+        }
+
         self.limit: int = limit
         if lib not in ('asyncio'):
             raise ValueError(
@@ -44,10 +52,8 @@ class Search:
             from asyncio import get_event_loop
             loop = loop or get_event_loop()
 
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.82 Safari/537.36"
-        }
-        self.session = session or ClientSession(loop=loop, headers=headers)
+        self.session = session or ClientSession(loop=loop)
+        self.session._default_headers = HEADERS
 
     def __ensure_teritory(func):
         async def decor(self, *args, **kwargs):
@@ -58,13 +64,33 @@ class Search:
             return await func(self, *args, **kwargs)
         return decor
 
+    def __ensure_token(func):
+        async def decor(self, *args, **kwargs):
+            if self.token['grabbed'] is None or self.token['grabbed'] == self.token['grabbed'] + timedelta(days=2):
+                tok: str = None
+                
+                async with self.session.get(LYRICSFIND_DOMAIN) as resp:
+                    tok = str(resp.cookies['token']).removeprefix(
+                        "Set-Cookie: token=").replace("; Domain=lyrics.lyricfind.com; Path=/", "")
+                    self.token['grabbed'] = datetime.now()
+
+                self.session._default_headers.update({
+                    "Authorization": f"Bearer {tok}"
+                })
+                
+
+            return await func(self, *args, **kwargs)
+        return decor
+
+    @__ensure_token
     @__ensure_teritory
     async def get_tracks(self, query: str) -> list[Track]:
         '''
         Get List of all tracks from database, based by keyword
         '''
         url: str = f"{LYRICSFIND_DOMAIN}api/v1/search"
-        params: dict = Param(self.teritory).get_param_search(query=query, limit=self.limit)
+        params: dict = Param(self.teritory).get_param_search(
+            query=query, limit=self.limit)
 
         async with self.session.get(url=url, params=params) as resp:
             if resp.status < 400:
@@ -76,7 +102,8 @@ class Search:
                     raise LFException(http_code=data['response']['code'])
             else:
                 raise LFException(http_code=resp.status)
-            
+
+    @__ensure_token
     @__ensure_teritory
     async def get_track(self, trackid: str):
         '''
@@ -88,7 +115,8 @@ class Search:
         for reference on metadata, check ```Model``` class.
         '''
         url: str = f"{LYRICSFIND_DOMAIN}api/v1/metadata"
-        params: dict = Param(self.teritory).get_param_search(trackid=trackid, limit=self.limit)
+        params: dict = Param(self.teritory).get_param_search(
+            trackid=trackid, limit=self.limit)
 
         async with self.session.get(url=url, params=params) as resp:
             if resp.status < 400:
@@ -101,6 +129,7 @@ class Search:
             else:
                 raise LFException(http_code=resp.status)
 
+    @__ensure_token
     @__ensure_teritory
     async def get_lyrics(self, lfid: str) -> SongData:
         '''
@@ -120,6 +149,7 @@ class Search:
             else:
                 raise LFException(http_code=resp.status)
 
+    @__ensure_token
     @__ensure_teritory
     async def get_translation(self, track: Track, lang: str) -> Translation:
         '''
@@ -128,7 +158,8 @@ class Search:
         This also dynamically check, if passed language is exist or not, if doesnt, will throw exception.
         '''
         if not track.available_translations:
-            raise LFException(message="No translation found on this track!", was_generic=True)
+            raise LFException(
+                message="No translation found on this track!", was_generic=True)
 
         url: str = f"{LYRICSFIND_DOMAIN}api/v1/translation"
         lang = lang.lower()
@@ -136,7 +167,8 @@ class Search:
             raise LFException(
                 message=f"Please check the language you inputted!. Listed language {track.available_translations}(listed on array, select one))", was_generic=True)
 
-        params: dict = Param(self.teritory).get_param_translation(lfid=track.lfid, traslation_language=lang)
+        params: dict = Param(self.teritory).get_param_translation(
+            lfid=track.lfid, traslation_language=lang)
         async with self.session.get(url=url, params=params) as resp:
             if resp.status < 400:
                 data: dict = await resp.json()
