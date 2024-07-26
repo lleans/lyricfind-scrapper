@@ -1,6 +1,7 @@
 import setuptools
 
-requirements = [requirement.strip() for requirement in open('requirements.txt', 'r', encoding='utf-8').readlines()]
+requirements = [requirement.strip() for requirement in open(
+    'requirements.txt', 'r', encoding='utf-8').readlines()]
 
 with open("README.md", "r", encoding='utf-8') as fh:
     long_description = fh.read()

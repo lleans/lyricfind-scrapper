@@ -2,6 +2,7 @@ from asyncio import get_event_loop
 from aiohttp import ClientSession
 from LyricsFindScrapper import Search, Track, SongData, Translation
 
+
 async def test():
     session: ClientSession = ClientSession()
     client: Search = Search(session=session)
@@ -11,7 +12,7 @@ async def test():
     track: Track = await client.get_track(trackid=f'lfid:{tracks[0].lfid}')
     # Get lyric info
     first_track: SongData = await client.get_lyrics(track=track)
-    
+
     # Print all the attributes(access the origin if you want the raw data)
     res: dict = first_track.__dict__
     res.pop('origin')
